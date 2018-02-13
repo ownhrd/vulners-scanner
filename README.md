@@ -57,3 +57,59 @@ echo "vulners-scanner:password" | chpasswd
 ```
 
 ## ENG
+### Script for searching for vulnerable packages on *nix hosts (Ubuntu 14.04/16.04, CentOS 6/7, Debian 8). Get a list of installed packages on ssh and performs a check. The same sends metrics to Zabbix.
+**Installation:**
+* Copy scripts in `/root/vulners-scanner`
+* Create directory with keys `mkdir /root/vulners-scanner/vulners-key`
+* Generate key `ssh-keygen`
+```
+$ ssh-keygen
+Generating public/private rsa key pair.
+Enter file in which to save the key (/root/.ssh/id_rsa): /root/vulners-scanner/vulners-key/vulners_key
+Enter passphrase (empty for no passphrase): 
+Enter same passphrase again: 
+Your identification has been saved in /root/vulners-scanner/vulners-key/vulners_key.
+Your public key has been saved in /root/vulners-scanner/vulners-key/vulners_key.pub.
+The key fingerprint is:
+SHA256:PREggK5EdKt6/y/nfZwYtg1M35HAL/vry+mBanHWMY4 root@localhost.localdomain
+The key's randomart image is:
++---[RSA 2048]----+
+|.. o... ....     |
+| .o .  .   .o    |
+|.. .      .  o . |
+| .o      .... *  |
+|.o      Soo. B + |
+|o         *.E.+  |
+|. .      . @.o.  |
+| . .  . ..+.=..o |
+|    ...=o.o. oBo |
++----[SHA256]-----+
+```
+* `chmod 600 /root/vulners-scanner/vulners-key/vulners_key*`
+* Add 2 tasks in `/etc/cron.d`:
+
+**check_vulners**
+```
+# start check vulners daily at 8am
+55 7 * * * root bash /root/vulners-scanner/get_vulners_db.sh &> /var/log/get_vulners_db_debug
+00 8 * * * root bash /root/vulners-scanner/sendmail.sh &> /var/log/vulners_debug
+```
+**check_vulners_hourly** 
+
+```
+# start check vulners hourly
+0 * * * * root bash /root/vulners-scanner/get_vulners_db.sh &> /var/log/get_vulners_db_debug
+0 * * * * root python /root/vulners-scanner/vulners_over_ssh_scanner.py &> /var/log/zbx_vulners_debug
+```
+* Import template `Template_App_Vulners_Trap.xml` в **Zabbix**
+* List of hosts to check: `hosts`
+* Install the necessary modules for Python ` yum install python-paramiko epel-release python-pip && pip install py-zabbix executor`
+* Add user for scan:
+```
+useradd vulners-scanner
+mkdir -p -m 700 /home/vulners-scanner/.ssh
+echo "ssh-rsa XXX" >> /home/vulners-scanner/.ssh/authorized_keys
+chown -R vulners-scanner:vulners-scanner /home/vulners-scanner/
+chmod 600 /home/vulners-scanner/.ssh/authorized_keys
+echo "vulners-scanner:password" | chpasswd
+```
